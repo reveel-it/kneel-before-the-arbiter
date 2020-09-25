@@ -24,6 +24,7 @@ def __init__(_arbiter: address, _arbiterFee: uint256, _arbiterFeeIsPercent: bool
     Start a binding arbitration with the provided arbiter and their fee
     """
     # using underscores in param names because examples did
+    assert not _arbiterFeeIsPercent or (_arbiterFee >= 0 and _arbiterFee <= 1)
     self.arbiter = _arbiter
     self.arbiterFee = _arbiterFee
     self.arbiterFeeIsPercent = _arbiterFeeIsPercent
@@ -57,7 +58,23 @@ def withdraw():
     When two parties have entered and the arbiter cancels, both parties can withdraw their funds with no fee.
     When two parties have entered and the arbiter decides a winner, the winner can withdraw all the funds minus the arbiter fee and the arbiter can withdraw the arbiter fee
     """
-    pass
+    if self.canceled:
+      # the arbiter has cancelled, parties may withdraw
+      assert msg.sender == self.firstParty or msg.sender == self.secondParty
+    elif self.winner != ZERO_ADDRESS:
+      # a winner has been selected, arbiter and winner may withdraw
+      assert msg.sender == self.winner or msg.sender == self.arbiter
+    elif self.secondParty == ZERO_ADDRESS:
+      # Only one party has entered, they may withdraw
+      assert msg.sender == self.firstParty
+      self.firstParty = ZERO_ADDRESS
+    else:
+      # This means the arbitration still pending, nobody may withdraw
+      assert False
+    
+    pending_amount: uint256 = self.escrow[msg.sender]
+    self.escrow[msg.sender] = 0
+    send(msg.sender, pending_amount)
 
 @external
 def cancel():
@@ -83,4 +100,16 @@ def decide(_winner: address):
     assert not self.canceled
 
     self.winner = _winner
+
+    total_winnings: uint256 = self.escrow[self.firstParty] + self.escrow[self.secondParty]
+
+    if self.arbiterFeeIsPercent:
+        self.escrow[self.arbiter] = total_winnings * self.arbiterFee
+    else:
+        self.escrow[self.arbiter] = min(total_winnings, self.arbiterFee)
+
+    self.escrow[self.winner] = total_winnings - self.escrow[self.arbiter]
+    self.escrow[self.firstParty] = 0
+    self.escrow[self.secondParty] = 0
+
     self.endTime = block.timestamp
