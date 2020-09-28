@@ -99,6 +99,7 @@ def decide(_winner: address):
     assert msg.sender == self.arbiter
     assert self.winner == ZERO_ADDRESS
     assert self.firstParty != ZERO_ADDRESS and self.secondParty != ZERO_ADDRESS
+    assert _winner == self.firstParty or _winner == self.secondParty
     assert not self.canceled
 
     self.winner = _winner
