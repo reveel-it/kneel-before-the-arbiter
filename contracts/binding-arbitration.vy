@@ -22,7 +22,7 @@ def __init__(_arbiter: address, _arbiterFee: uint256, _arbiterFeeIsPercent: bool
     Start a binding arbitration with the provided arbiter and their fee
     """
     # using underscores in param names because examples did
-    assert not _arbiterFeeIsPercent or (_arbiterFee >= 0 and _arbiterFee <= 1)
+    assert _arbiterFee >= 0 and (not _arbiterFeeIsPercent or _arbiterFee <= 1)
     self.arbiter = _arbiter
     self.arbiterFee = _arbiterFee
     self.arbiterFeeIsPercent = _arbiterFeeIsPercent
@@ -40,7 +40,6 @@ def enter():
     assert self.firstParty == ZERO_ADDRESS or self.secondParty == ZERO_ADDRESS
     assert msg.sender != self.arbiter
     assert msg.sender != self.firstParty
-    assert msg.sender != self.secondParty
     if self.firstParty == ZERO_ADDRESS:
         self.firstParty = msg.sender
     elif self.secondParty == ZERO_ADDRESS:
@@ -66,12 +65,10 @@ def withdraw():
     elif self.secondParty == ZERO_ADDRESS:
       # Only one party has entered, they may withdraw
       assert msg.sender == self.firstParty
+      self.firstParty = ZERO_ADDRESS
     else:
       # This means the arbitration still pending, nobody may withdraw
       assert False
-
-    if self.secondParty == ZERO_ADDRESS:
-      self.firstParty = ZERO_ADDRESS
 
     pending_amount: uint256 = self.escrow[msg.sender]
     self.escrow[msg.sender] = 0
