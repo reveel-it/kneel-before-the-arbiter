@@ -10,12 +10,10 @@ secondParty: public(address)
 winner: public(address)
 
 startTime: public(uint256)
-# when endTime exists it is when the abitration was resolved or canceled
 endTime: public(uint256)
-# true when the abitration was ended by cancellation else the arbitration was resolved or is still open
 canceled: public(bool)
 
-# Keep track of $$$
+escrowTotal: public(uint256)
 escrow: public(HashMap[address, uint256])
 
 @external
@@ -49,6 +47,7 @@ def enter():
         self.secondParty = msg.sender
 
     self.escrow[msg.sender] += msg.value
+    self.escrowTotal += msg.value
 
 @external
 def withdraw():
@@ -67,13 +66,16 @@ def withdraw():
     elif self.secondParty == ZERO_ADDRESS:
       # Only one party has entered, they may withdraw
       assert msg.sender == self.firstParty
-      self.firstParty = ZERO_ADDRESS
     else:
       # This means the arbitration still pending, nobody may withdraw
       assert False
-    
+
+    if self.secondParty == ZERO_ADDRESS:
+      self.firstParty = ZERO_ADDRESS
+
     pending_amount: uint256 = self.escrow[msg.sender]
     self.escrow[msg.sender] = 0
+    self.escrowTotal -= pending_amount
     send(msg.sender, pending_amount)
 
 @external
@@ -101,14 +103,12 @@ def decide(_winner: address):
 
     self.winner = _winner
 
-    total_winnings: uint256 = self.escrow[self.firstParty] + self.escrow[self.secondParty]
-
     if self.arbiterFeeIsPercent:
-        self.escrow[self.arbiter] = total_winnings * self.arbiterFee
+        self.escrow[self.arbiter] = self.escrowTotal * self.arbiterFee
     else:
-        self.escrow[self.arbiter] = min(total_winnings, self.arbiterFee)
+        self.escrow[self.arbiter] = min(self.escrowTotal, self.arbiterFee)
 
-    self.escrow[self.winner] = total_winnings - self.escrow[self.arbiter]
+    self.escrow[self.winner] = self.escrowTotal - self.escrow[self.arbiter]
     self.escrow[self.firstParty] = 0
     self.escrow[self.secondParty] = 0
 
